@@ -214,3 +214,24 @@ def test_systemone_images_not_supported():
         "images": [get_img_url("IMG_BASE64_URI_0")],
     })
     assert res.status_code == 501
+
+
+@pytest.mark.parametrize("server_cache,request_cache", [(False, None), (True, False)])
+def test_systemone_no_cache_prompt(server_cache: bool, request_cache):
+    global server
+    server = ServerPreset.tinyopenjev()
+    server.server_metrics = True
+    server.cache_prompt = server_cache
+    server.start()
+    data = {"state": TEST_STATE, "questions": TEST_QUESTIONS}
+    if request_cache is not None:
+        data["cache_prompt"] = request_cache
+    res_first = server.make_request("POST", "/v1/systemone", data=data)
+    res_again = server.make_request("POST", "/v1/systemone", data=data)
+    assert res_first.status_code == 200 and res_again.status_code == 200
+
+    # every prompt is evaluated from its start, nothing is taken from the cache
+    n_processed, n_cached = get_prompt_metrics(server)
+    assert n_cached == 0
+    assert n_processed == res_first.body["usage"]["input_tokens"] + res_again.body["usage"]["input_tokens"]
+    assert res_first.body["answers"] == res_again.body["answers"]

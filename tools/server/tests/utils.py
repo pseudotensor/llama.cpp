@@ -275,6 +275,8 @@ class ServerProcess:
             server_args.extend(["--chat-template-file", self.chat_template_file])
         if self.mmproj_url:
             server_args.extend(["--mmproj-url", self.mmproj_url])
+        if self.cache_prompt is False:
+            server_args.append("--no-cache-prompt")
         if self.no_mmproj:
             server_args.append("--no-mmproj")
         if self.media_path:

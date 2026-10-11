@@ -5775,6 +5775,9 @@ void server_routes::init_routes() {
             return res;
         }
 
+        // like a completion, the request can turn prompt caching off for itself
+        const bool cache_prompt = json_value(body, "cache_prompt", params.cache_prompt);
+
         // one task per variant of each question, or one task for all the questions
         auto & rd = res->rd;
         {
@@ -5790,11 +5793,13 @@ void server_routes::init_routes() {
                         server_task task = server_task(SERVER_TASK_TYPE_DECISION);
                         task.id = rd.get_new_id();
                         decision.fill_task(state, questions, question, variant, files, ctx_server.mctx, ctx_server.init_opt, task);
+                        task.params.cache_prompt = cache_prompt;
                         tasks.push_back(std::move(task));
                     }
                 }
             }
-            if (decision.can_share_prompt()) {
+            // a shared prefix is reused from the cache, so it needs prompt caching
+            if (decision.can_share_prompt() && cache_prompt) {
                 tasks = server_decision_group_tasks(std::move(tasks), params.n_parallel);
             }
             rd.post_tasks(std::move(tasks));
