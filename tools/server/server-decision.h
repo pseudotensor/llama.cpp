@@ -103,7 +103,8 @@ struct server_decision_context {
             server_task & task) const;
 
     // scores: the raw model outputs of each variant
-    json format_answer(const server_decision_question & question, const std::vector<std::vector<float>> & scores, bool has_media = false) const;
+    // noul_floor: a noul probability closer to 0.5 than this is moved to it, 0 = off
+    json format_answer(const server_decision_question & question, const std::vector<std::vector<float>> & scores, bool has_media = false, double noul_floor = 0.0) const;
 
 private:
     const llama_vocab * vocab = nullptr;
@@ -149,6 +150,9 @@ private:
 
     float get_temperature(const server_decision_question & question) const;
 };
+
+// the optional "noul_floor" of a request, 0 if not set; throw std::invalid_argument on bad input
+double server_decision_parse_noul_floor(const json & body);
 
 // group the tasks so that the common prefix of their prompts is evaluated only once
 // each group is one parent and its children, it takes at most n_slots slots

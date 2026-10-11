@@ -5767,6 +5767,7 @@ void server_routes::init_routes() {
 
         const json body = json::parse(req.body);
         const auto questions = decision.parse_questions(body);
+        const double noul_floor = server_decision_parse_noul_floor(body);
 
         std::vector<raw_buffer> files;
         const json state = decision.parse_state(body, files);
@@ -5829,7 +5830,7 @@ void server_routes::init_routes() {
                 scores.push_back(result->scores);
                 n_tokens += result->n_tokens;
             }
-            answers[question.id] = decision.format_answer(question, scores, !files.empty());
+            answers[question.id] = decision.format_answer(question, scores, !files.empty(), noul_floor);
         }
 
         res->ok(json{

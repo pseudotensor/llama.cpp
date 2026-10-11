@@ -214,3 +214,26 @@ def test_systemone_images_not_supported():
         "images": [get_img_url("IMG_BASE64_URI_0")],
     })
     assert res.status_code == 501
+
+
+@pytest.mark.parametrize("noul_floor", [0.4, 0.5, 1.0, "high"])
+def test_systemone_noul_floor_invalid(noul_floor):
+    global server
+    server.start()
+    res = server.make_request("POST", "/v1/systemone", data={"state": TEST_STATE, "questions": TEST_QUESTIONS, "noul_floor": noul_floor})
+    assert res.status_code == 400
+
+
+def test_systemone_noul_floor():
+    global server
+    server = ServerPreset.tinyopenjev()
+    server.start()
+    questions = {f"q{i}": {"type": "noul", "instructions": f"Is statement {i} true?"} for i in range(16)}
+    raw = server.make_request("POST", "/v1/systemone", data={"state": TEST_STATE, "questions": questions})
+    floored = server.make_request("POST", "/v1/systemone", data={"state": TEST_STATE, "questions": questions, "noul_floor": 0.8})
+    assert raw.status_code == 200 and floored.status_code == 200
+    for qid, answer in raw.body["answers"].items():
+        # a probability between 0.2 and 0.8 moves to the nearer bound, the answer does not change
+        p = answer["noul"]
+        expected = (0.8 if p >= 0.5 else 0.2) if 0.2 < p < 0.8 else p
+        assert abs(floored.body["answers"][qid]["noul"] - expected) < 1e-3

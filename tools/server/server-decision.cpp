@@ -1056,7 +1056,7 @@ static double decision_confidence_score(const std::vector<double> & probs) {
     return std::max(0.0, 1.0 - dist / dist_uniform);
 }
 
-json server_decision_context::format_answer(const server_decision_question & question, const std::vector<std::vector<float>> & scores, bool has_media) const {
+json server_decision_context::format_answer(const server_decision_question & question, const std::vector<std::vector<float>> & scores, bool has_media, double noul_floor) const {
     const size_t n = n_outputs(question);
     if (scores.size() != n_variants(question)) {
         throw std::runtime_error("decision result does not match the number of variants");
@@ -1091,19 +1091,23 @@ json server_decision_context::format_answer(const server_decision_question & que
     json answer = json{{"type", decision_question_type_name(question.type)}};
 
     if (question.type == SERVER_DECISION_QUESTION_NOUL) {
+        double p = 0.0;
         if (type == COMMON_DECISION_TYPE_LEV) {
-            double expected = 0.0;
             for (size_t i = 0; i < n; i++) {
-                expected += probs[i] * i / (n - 1);
+                p += probs[i] * i / (n - 1);
             }
-            answer["noul"] = expected;
-            return answer;
-        }
-        for (size_t i = 0; i < n; i++) {
-            if (question.options[i].key == "true") {
-                answer["noul"] = probs[i];
+        } else {
+            for (size_t i = 0; i < n; i++) {
+                if (question.options[i].key == "true") {
+                    p = probs[i];
+                }
             }
         }
+        // the answer does not change, a tie goes to true
+        if (noul_floor > 0.0 && std::max(p, 1.0 - p) < noul_floor) {
+            p = p >= 0.5 ? noul_floor : 1.0 - noul_floor;
+        }
+        answer["noul"] = p;
         return answer;
     }
 
@@ -1130,6 +1134,21 @@ json server_decision_context::format_answer(const server_decision_question & que
         answer["confidence"]    = decision_confidence_score(probs);
     }
     return answer;
+}
+
+double server_decision_parse_noul_floor(const json & body) {
+    if (!body.contains("noul_floor") || body.at("noul_floor").is_null()) {
+        return 0.0;
+    }
+    const json & val = body.at("noul_floor");
+    if (!val.is_number()) {
+        throw std::invalid_argument("\"noul_floor\" must be a number");
+    }
+    const double noul_floor = val.get<double>();
+    if (noul_floor != 0.0 && !(noul_floor > 0.5 && noul_floor < 1.0)) {
+        throw std::invalid_argument("\"noul_floor\" must be 0 or between 0.5 and 1");
+    }
+    return noul_floor;
 }
 
 //
